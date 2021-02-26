@@ -346,7 +346,7 @@ fn write_relative_off<T: Write + Seek>(
     let dst_addr = dst_addr as i32;
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap() as i32;
     let call_off = dst_addr - (base_addr as i32 + cur_pos + 4);
-    buf.write(&call_off.to_le_bytes())?;
+    buf.write_all(&call_off.to_le_bytes())?;
     Ok(())
 }
 
@@ -360,7 +360,7 @@ fn move_code_to_addr(ori_insts: &Vec<Instruction>, dest_addr: u32) -> Result<Vec
 fn write_ori_func_addr<T: Write + Seek>(buf: &mut T, ori_func_addr_off: u32, ori_func_off: u32) {
     let pos = buf.seek(SeekFrom::Current(0)).unwrap();
     buf.seek(SeekFrom::Start(ori_func_addr_off as u64)).unwrap();
-    buf.write(&ori_func_off.to_le_bytes()).unwrap();
+    buf.write_all(&ori_func_off.to_le_bytes()).unwrap();
     buf.seek(SeekFrom::Start(pos)).unwrap();
 }
 
@@ -373,24 +373,24 @@ fn generate_jmp_back_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // push hooker.addr
-    buf.write(&[0x68])?;
-    buf.write(&(ori_addr as u32).to_le_bytes())?;
+    buf.write_all(&[0x68])?;
+    buf.write_all(&(ori_addr as u32).to_le_bytes())?;
 
     // push ebp (Registers)
     // call XXXX (dest addr)
-    buf.write(&[0x55, 0xe8])?;
+    buf.write_all(&[0x55, 0xe8])?;
     write_relative_off(buf, stub_base_addr, cb as u32)?;
 
     // add esp, 0x8
-    buf.write(&[0x83, 0xc4, 0x08])?;
+    buf.write_all(&[0x83, 0xc4, 0x08])?;
     // popfd
     // popad
-    buf.write(&[0x9d, 0x61])?;
+    buf.write_all(&[0x9d, 0x61])?;
 
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
-    buf.write(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
+    buf.write_all(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
     // jmp back
-    buf.write(&[0xe9])?;
+    buf.write_all(&[0xe9])?;
     write_relative_off(buf, stub_base_addr, ori_addr as u32 + ori_len as u32)
 }
 
@@ -404,39 +404,39 @@ fn generate_retn_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // push hooker.addr
-    buf.write(&[0x68])?;
-    buf.write(&(ori_addr as u32).to_le_bytes())?;
+    buf.write_all(&[0x68])?;
+    buf.write_all(&(ori_addr as u32).to_le_bytes())?;
 
     // push XXXX (original function addr)
     // push ebp (Registers)
     // call XXXX (dest addr)
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 1;
-    buf.write(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
+    buf.write_all(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
     write_relative_off(buf, stub_base_addr, cb as u32)?;
 
     // add esp, 0xc
-    buf.write(&[0x83, 0xc4, 0x0c])?;
+    buf.write_all(&[0x83, 0xc4, 0x0c])?;
     // mov [esp+20h], eax
-    buf.write(&[0x89, 0x44, 0x24, 0x20])?;
+    buf.write_all(&[0x89, 0x44, 0x24, 0x20])?;
     // popfd
     // popad
-    buf.write(&[0x9d, 0x61])?;
+    buf.write_all(&[0x9d, 0x61])?;
     if retn_val == 0 {
         // retn
-        buf.write(&[0xc3])?;
+        buf.write_all(&[0xc3])?;
     } else {
         // retn XX
-        buf.write(&[0xc2])?;
-        buf.write(&retn_val.to_le_bytes())?;
+        buf.write_all(&[0xc2])?;
+        buf.write_all(&retn_val.to_le_bytes())?;
     }
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
     write_ori_func_addr(buf, ori_func_addr_off as u32, stub_base_addr + ori_func_off);
 
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
-    buf.write(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
+    buf.write_all(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
 
     // jmp ori_addr
-    buf.write(&[0xe9])?;
+    buf.write_all(&[0xe9])?;
     write_relative_off(buf, stub_base_addr, ori_addr as u32 + ori_len as u32)
 }
 
@@ -450,33 +450,33 @@ fn generate_jmp_addr_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // push hooker.addr
-    buf.write(&[0x68])?;
-    buf.write(&(ori_addr as u32).to_le_bytes())?;
+    buf.write_all(&[0x68])?;
+    buf.write_all(&(ori_addr as u32).to_le_bytes())?;
 
     // push XXXX (original function addr)
     // push ebp (Registers)
     // call XXXX (dest addr)
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 1;
-    buf.write(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
+    buf.write_all(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
     write_relative_off(buf, stub_base_addr, cb as u32)?;
 
     // add esp, 0xc
-    buf.write(&[0x83, 0xc4, 0x0c])?;
+    buf.write_all(&[0x83, 0xc4, 0x0c])?;
     // popfd
     // popad
-    buf.write(&[0x9d, 0x61])?;
+    buf.write_all(&[0x9d, 0x61])?;
     // jmp back
-    buf.write(&[0xe9])?;
+    buf.write_all(&[0xe9])?;
     write_relative_off(buf, stub_base_addr, dest_addr as u32 + ori_len as u32)?;
 
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
     write_ori_func_addr(buf, ori_func_addr_off as u32, stub_base_addr + ori_func_off);
 
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
-    buf.write(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
+    buf.write_all(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
 
     // jmp ori_addr
-    buf.write(&[0xe9])?;
+    buf.write_all(&[0xe9])?;
     write_relative_off(buf, stub_base_addr, ori_addr as u32 + ori_len as u32)
 }
 
@@ -489,34 +489,34 @@ fn generate_jmp_ret_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // push hooker.addr
-    buf.write(&[0x68])?;
-    buf.write(&(ori_addr as u32).to_le_bytes())?;
+    buf.write_all(&[0x68])?;
+    buf.write_all(&(ori_addr as u32).to_le_bytes())?;
 
     // push XXXX (original function addr)
     // push ebp (Registers)
     // call XXXX (dest addr)
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 1;
-    buf.write(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
+    buf.write_all(&[0x68, 0, 0, 0, 0, 0x55, 0xe8])?;
     write_relative_off(buf, stub_base_addr, cb as u32)?;
 
     // add esp, 0xc
-    buf.write(&[0x83, 0xc4, 0x0c])?;
+    buf.write_all(&[0x83, 0xc4, 0x0c])?;
     // mov [esp-4], eax
-    buf.write(&[0x89, 0x44, 0x24, 0xfc])?;
+    buf.write_all(&[0x89, 0x44, 0x24, 0xfc])?;
     // popfd
     // popad
-    buf.write(&[0x9d, 0x61])?;
+    buf.write_all(&[0x9d, 0x61])?;
     // jmp dword ptr [esp-0x28]
-    buf.write(&[0xff, 0x64, 0x24, 0xd8])?;
+    buf.write_all(&[0xff, 0x64, 0x24, 0xd8])?;
 
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
     write_ori_func_addr(buf, ori_func_addr_off as u32, stub_base_addr + ori_func_off);
 
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap() as u32;
-    buf.write(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
+    buf.write_all(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
 
     // jmp ori_addr
-    buf.write(&[0xe9])?;
+    buf.write_all(&[0xe9])?;
     write_relative_off(buf, stub_base_addr, ori_addr as u32 + ori_len as u32)
 }
 
@@ -532,7 +532,7 @@ fn generate_stub(
     // pushad
     // pushfd
     // mov ebp, esp
-    buf.write(&[0x60, 0x9c, 0x8b, 0xec])?;
+    buf.write_all(&[0x60, 0x9c, 0x8b, 0xec])?;
 
     match hooker.hook_type {
         HookType::JmpBack(cb) => generate_jmp_back_stub(

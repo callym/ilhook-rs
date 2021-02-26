@@ -324,7 +324,7 @@ fn get_moving_insts(addr: usize) -> Result<(Vec<Instruction>, Vec<u8>), HookErro
     Ok((ori_insts, code_slice[0..decoder.position()].into()))
 }
 
-fn write_stub_prolog(buf: &mut impl Write) -> Result<usize, std::io::Error> {
+fn write_stub_prolog(buf: &mut impl Write) -> Result<(), std::io::Error> {
     // pushfq
     // test rsp,8
     // je _branch1
@@ -359,7 +359,7 @@ fn write_stub_prolog(buf: &mut impl Write) -> Result<usize, std::io::Error> {
     // movaps xmmword ptr ss:[rsp+10],xmm1
     // movaps xmmword ptr ss:[rsp+20],xmm2
     // movaps xmmword ptr ss:[rsp+30],xmm3
-    buf.write(&[
+    buf.write_all(&[
         0x9C, 0x48, 0xF7, 0xC4, 0x08, 0x00, 0x00, 0x00, 0x74, 0x10, 0x50, 0x48, 0x8B, 0x44, 0x24,
         0x08, 0xC7, 0x44, 0x24, 0x08, 0x00, 0x00, 0x00, 0x00, 0xEB, 0x12, 0x48, 0x83, 0xEC, 0x08,
         0x50, 0x48, 0x8B, 0x44, 0x24, 0x10, 0xC7, 0x44, 0x24, 0x08, 0x01, 0x00, 0x00, 0x00, 0x50,
@@ -370,7 +370,7 @@ fn write_stub_prolog(buf: &mut impl Write) -> Result<usize, std::io::Error> {
     ])
 }
 
-fn write_stub_epilog1(buf: &mut impl Write) -> Result<usize, std::io::Error> {
+fn write_stub_epilog1(buf: &mut impl Write) -> Result<(), std::io::Error> {
     // movaps xmm0,xmmword ptr ss:[rsp]
     // movaps xmm1,xmmword ptr ss:[rsp+10]
     // movaps xmm2,xmmword ptr ss:[rsp+20]
@@ -391,7 +391,7 @@ fn write_stub_epilog1(buf: &mut impl Write) -> Result<usize, std::io::Error> {
     // pop rdx
     // pop rcx
     // pop rbx
-    buf.write(&[
+    buf.write_all(&[
         0x0F, 0x28, 0x04, 0x24, 0x0F, 0x28, 0x4C, 0x24, 0x10, 0x0F, 0x28, 0x54, 0x24, 0x20, 0x0F,
         0x28, 0x5C, 0x24, 0x30, 0x48, 0x83, 0xC4, 0x40, 0x41, 0x5F, 0x41, 0x5E, 0x41, 0x5D, 0x41,
         0x5C, 0x41, 0x5B, 0x41, 0x5A, 0x41, 0x59, 0x41, 0x58, 0x5D, 0x5C, 0x5F, 0x5E, 0x5A, 0x59,
@@ -399,7 +399,7 @@ fn write_stub_epilog1(buf: &mut impl Write) -> Result<usize, std::io::Error> {
     ])
 }
 
-fn write_stub_epilog2_common(buf: &mut impl Write) -> Result<usize, std::io::Error> {
+fn write_stub_epilog2_common(buf: &mut impl Write) -> Result<(), std::io::Error> {
     // test dword ptr ss:[rsp+10],1
     // je _branch1
     // popfq
@@ -411,13 +411,13 @@ fn write_stub_epilog2_common(buf: &mut impl Write) -> Result<usize, std::io::Err
     // pop rax
     // add rsp,8
     // _branch2:
-    buf.write(&[
+    buf.write_all(&[
         0xF7, 0x44, 0x24, 0x10, 0x01, 0x00, 0x00, 0x00, 0x74, 0x08, 0x9D, 0x58, 0x48, 0x83, 0xC4,
         0x10, 0xEB, 0x06, 0x9D, 0x58, 0x48, 0x83, 0xC4, 0x08,
     ])
 }
 
-fn write_stub_epilog2_jmp_ret(buf: &mut impl Write) -> Result<usize, std::io::Error> {
+fn write_stub_epilog2_jmp_ret(buf: &mut impl Write) -> Result<(), std::io::Error> {
     // test dword ptr ss:[rsp+10],1
     // je _branch1
     // popfq
@@ -432,7 +432,7 @@ fn write_stub_epilog2_jmp_ret(buf: &mut impl Write) -> Result<usize, std::io::Er
     // add rsp,8
     // _branch2:
     // jmp qword ptr ss:[rsp-8]
-    buf.write(&[
+    buf.write_all(&[
         0xF7, 0x44, 0x24, 0x10, 0x01, 0x00, 0x00, 0x00, 0x74, 0x0D, 0x9D, 0x48, 0x89, 0x44, 0x24,
         0x10, 0x58, 0x48, 0x83, 0xC4, 0x10, 0xEB, 0x0B, 0x9D, 0x48, 0x89, 0x44, 0x24, 0x08, 0x58,
         0x48, 0x83, 0xC4, 0x08, 0xFF, 0x64, 0x24, 0xF8,
@@ -440,8 +440,8 @@ fn write_stub_epilog2_jmp_ret(buf: &mut impl Write) -> Result<usize, std::io::Er
 }
 
 fn jmp_addr<T: Write>(addr: u64, buf: &mut T) -> Result<(), HookError> {
-    buf.write(&[0xff, 0x25, 0, 0, 0, 0])?;
-    buf.write(&addr.to_le_bytes())?;
+    buf.write_all(&[0xff, 0x25, 0, 0, 0, 0])?;
+    buf.write_all(&addr.to_le_bytes())?;
     Ok(())
 }
 
@@ -455,7 +455,7 @@ fn move_code_to_addr(ori_insts: &Vec<Instruction>, dest_addr: u64) -> Result<Vec
 fn write_ori_func_addr<T: Write + Seek>(buf: &mut T, ori_func_addr_off: u64, ori_func_off: u64) {
     let pos = buf.seek(SeekFrom::Current(0)).unwrap();
     buf.seek(SeekFrom::Start(ori_func_addr_off)).unwrap();
-    buf.write(&ori_func_off.to_le_bytes()).unwrap();
+    buf.write_all(&ori_func_off.to_le_bytes()).unwrap();
     buf.seek(SeekFrom::Start(pos)).unwrap();
 }
 
@@ -468,21 +468,21 @@ fn generate_jmp_back_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // mov rdx, ori_addr
-    buf.write(&[0x48, 0xba])?;
-    buf.write(&(ori_addr as u64).to_le_bytes())?;
+    buf.write_all(&[0x48, 0xba])?;
+    buf.write_all(&(ori_addr as u64).to_le_bytes())?;
     // mov rcx, rsp
     // sub rsp, 0x10
     // mov rax, cb
-    buf.write(&[0x48, 0x89, 0xe1, 0x48, 0x83, 0xec, 0x10, 0x48, 0xb8])?;
-    buf.write(&(cb as usize as u64).to_le_bytes())?;
+    buf.write_all(&[0x48, 0x89, 0xe1, 0x48, 0x83, 0xec, 0x10, 0x48, 0xb8])?;
+    buf.write_all(&(cb as usize as u64).to_le_bytes())?;
     // call rax
     // add rsp, 0x10
-    buf.write(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x10])?;
+    buf.write_all(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x10])?;
     write_stub_epilog1(buf)?;
     write_stub_epilog2_common(buf)?;
 
     let cur_pos = buf.seek(SeekFrom::Current(0)).unwrap();
-    buf.write(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
+    buf.write_all(&move_code_to_addr(moving_code, stub_base_addr + cur_pos)?)?;
 
     jmp_addr(ori_addr as u64 + ori_len as u64, buf)?;
     Ok(())
@@ -497,30 +497,30 @@ fn generate_retn_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // mov r8, ori_addr
-    buf.write(&[0x49, 0xb8])?;
-    buf.write(&(ori_addr as u64).to_le_bytes())?;
+    buf.write_all(&[0x49, 0xb8])?;
+    buf.write_all(&(ori_addr as u64).to_le_bytes())?;
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 2;
     // mov rdx, ori_func
     // mov rcx, rsp
     // sub rsp,0x20
     // mov rax, cb
-    buf.write(&[
+    buf.write_all(&[
         0x48, 0xba, 0, 0, 0, 0, 0, 0, 0, 0, 0x48, 0x89, 0xe1, 0x48, 0x83, 0xec, 0x20, 0x48, 0xb8,
     ])?;
-    buf.write(&(cb as usize as u64).to_le_bytes())?;
+    buf.write_all(&(cb as usize as u64).to_le_bytes())?;
     // call rax
     // add rsp, 0x20
     // mov [rsp + 0xc0], rax
-    buf.write(&[
+    buf.write_all(&[
         0xff, 0xd0, 0x48, 0x83, 0xc4, 0x20, 0x48, 0x89, 0x84, 0x24, 0xc0, 0x00, 0x00, 0x00,
     ])?;
     write_stub_epilog1(buf)?;
     write_stub_epilog2_common(buf)?;
     // ret
-    buf.write(&[0xc3])?;
+    buf.write_all(&[0xc3])?;
 
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap();
-    buf.write(&move_code_to_addr(
+    buf.write_all(&move_code_to_addr(
         moving_code,
         stub_base_addr + ori_func_off,
     )?)?;
@@ -541,26 +541,26 @@ fn generate_jmp_addr_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // mov r8, ori_addr
-    buf.write(&[0x49, 0xb8])?;
-    buf.write(&(ori_addr as u64).to_le_bytes())?;
+    buf.write_all(&[0x49, 0xb8])?;
+    buf.write_all(&(ori_addr as u64).to_le_bytes())?;
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 2;
     // mov rdx, ori_func
     // mov rcx, rsp
     // sub rsp,0x20
     // mov rax, cb
-    buf.write(&[
+    buf.write_all(&[
         0x48, 0xba, 0, 0, 0, 0, 0, 0, 0, 0, 0x48, 0x89, 0xe1, 0x48, 0x83, 0xec, 0x20, 0x48, 0xb8,
     ])?;
-    buf.write(&(cb as usize as u64).to_le_bytes())?;
+    buf.write_all(&(cb as usize as u64).to_le_bytes())?;
     // call rax
     // add rsp, 0x20
-    buf.write(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x20])?;
+    buf.write_all(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x20])?;
     write_stub_epilog1(buf)?;
     write_stub_epilog2_common(buf)?;
     jmp_addr(dest_addr as u64, buf)?;
 
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap();
-    buf.write(&move_code_to_addr(
+    buf.write_all(&move_code_to_addr(
         moving_code,
         stub_base_addr + ori_func_off,
     )?)?;
@@ -580,25 +580,25 @@ fn generate_jmp_ret_stub<T: Write + Seek>(
     ori_len: u8,
 ) -> Result<(), HookError> {
     // mov r8, ori_addr
-    buf.write(&[0x49, 0xb8])?;
-    buf.write(&(ori_addr as u64).to_le_bytes())?;
+    buf.write_all(&[0x49, 0xb8])?;
+    buf.write_all(&(ori_addr as u64).to_le_bytes())?;
     let ori_func_addr_off = buf.seek(SeekFrom::Current(0)).unwrap() + 2;
     // mov rdx, ori_func
     // mov rcx, rsp
     // sub rsp,0x20
     // mov rax, cb
-    buf.write(&[
+    buf.write_all(&[
         0x48, 0xba, 0, 0, 0, 0, 0, 0, 0, 0, 0x48, 0x89, 0xe1, 0x48, 0x83, 0xec, 0x20, 0x48, 0xb8,
     ])?;
-    buf.write(&(cb as usize as u64).to_le_bytes())?;
+    buf.write_all(&(cb as usize as u64).to_le_bytes())?;
     // call rax
     // add rsp, 0x20
-    buf.write(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x20])?;
+    buf.write_all(&[0xff, 0xd0, 0x48, 0x83, 0xc4, 0x20])?;
     write_stub_epilog1(buf)?;
     write_stub_epilog2_jmp_ret(buf)?;
 
     let ori_func_off = buf.seek(SeekFrom::Current(0)).unwrap();
-    buf.write(&move_code_to_addr(
+    buf.write_all(&move_code_to_addr(
         moving_code,
         stub_base_addr + ori_func_off,
     )?)?;
